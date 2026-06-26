@@ -7,7 +7,7 @@ import folder_paths
 import io
 import comfy.utils
 
-class MultiImageLoader:
+class CSMultiImageLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -61,7 +61,7 @@ class MultiImageLoader:
 
             width = new_width
             height = new_height
-            
+
         elif resize_method == 'crop':
             width = width if width > 0 else ow
             height = height if height > 0 else oh
@@ -83,7 +83,7 @@ class MultiImageLoader:
                 y = 0
             width = new_width
             height = new_height
-            
+
         else:
             width = width if width > 0 else ow
             height = height if height > 0 else oh
@@ -114,7 +114,7 @@ class MultiImageLoader:
             x2 = width - ((width % multiple_of) - x)
             y2 = height - ((height % multiple_of) - y)
             outputs = outputs[:, y:y2, x:x2, :]
-        
+
         outputs = torch.clamp(outputs, 0, 1)
 
         return outputs
@@ -129,7 +129,7 @@ class MultiImageLoader:
                 full_path = path
                 if not os.path.exists(full_path):
                     full_path = os.path.join(folder_paths.get_input_directory(), path)
-                    
+
                 if not os.path.exists(full_path):
                     print(f"Warning: Image path not found: {path}")
                     continue
@@ -164,11 +164,11 @@ class MultiImageLoader:
             # Safety Check: Advanced resize methods might output differently sized tensors (e.g., 'keep proportion')
             first_shape = results[0].shape
             all_same_shape = all(r.shape == first_shape for r in results)
-            
+
             if all_same_shape:
                 multi_output = torch.cat(results, dim=0)
             else:
-                print("CS-MultiImageLoader Warning: Images have different dimensions due to resize settings. Cannot batch into multi_output. Outputting zero tensor for the batch, but individual output nodes will still work fine.")
+                print("CSMultiImageLoader Warning: Images have different dimensions due to resize settings. Cannot batch into multi_output. Outputting zero tensor for the batch, but individual output nodes will still work fine.")
                 multi_output = torch.zeros((1, 64, 64, 3))
         else:
             # Fallback empty tensor if no valid paths

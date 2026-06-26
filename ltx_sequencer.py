@@ -3,7 +3,7 @@ import torch
 import comfy.utils
 from comfy_api.latest import io
 
-class LTXSequencer(LTXVAddGuide):
+class CSLTXSequencer(LTXVAddGuide):
     @classmethod
     def define_schema(cls):
         inputs = [
@@ -11,11 +11,11 @@ class LTXSequencer(LTXVAddGuide):
             io.Conditioning.Input("negative", tooltip="Negative conditioning to which guide keyframe info will be added"),
             io.Vae.Input("vae", tooltip="Video VAE used to encode the guide images"),
             io.Latent.Input("latent", tooltip="Video latent, guides are added to the end of this latent"),
-            io.Image.Input("multi_input", tooltip="Batched images from CS-MultiImageLoader"),
+            io.Image.Input("multi_input", tooltip="Batched images from CSMultiImageLoader"),
         ]
-        
+
         inputs.append(io.Int.Input("num_images", default=1, min=0, max=50, step=1, display_name="images_loaded", tooltip="Select how many index/strength widgets to configure."))
-        
+
         # New global settings widgets
         inputs.append(io.Combo.Input("insert_mode", options=["frames", "seconds"], default="frames", tooltip="Select the method for determining insertion points."))
         inputs.append(io.Int.Input("frame_rate", default=24, min=1, max=120, step=1, tooltip="Video FPS (used for calculating second insertions)."))
@@ -41,19 +41,19 @@ class LTXSequencer(LTXVAddGuide):
                     optional=True,
                 ),
                 io.Float.Input(
-                    f"strength_{i}", 
-                    default=1.0, 
-                    min=0.0, 
-                    max=1.0, 
-                    step=0.01, 
+                    f"strength_{i}",
+                    default=1.0,
+                    min=0.0,
+                    max=1.0,
+                    step=0.01,
                     tooltip=f"Strength for image {i}.",
                     optional=True,
                 ),
             ])
 
         return io.Schema(
-            node_id="CS-LTXSequencer",
-            display_name="CS LTX Sequencer",
+            node_id="CSLTXSequencer",
+            display_name="CS-LTX Sequencer",
             category="CS-WhatDreamsCost",
             description="Add multiple guide images at specified frame indices or seconds with strengths. Number of widgets is dynamically configured.",
             inputs=inputs,
@@ -67,10 +67,10 @@ class LTXSequencer(LTXVAddGuide):
     @classmethod
     def execute(cls, positive, negative, vae, latent, multi_input, num_images, **kwargs) -> io.NodeOutput:
         scale_factors = vae.downscale_index_formula
-        
+
         # Clone latents to avoid overwriting previous nodes' operations
         latent_image = latent["samples"].clone()
-        
+
         # Helper logic to fetch or generate a noise mask
         if "noise_mask" in latent:
             noise_mask = latent["noise_mask"].clone()
@@ -110,7 +110,7 @@ class LTXSequencer(LTXVAddGuide):
 
             if f_idx is None:
                 continue
-                
+
             strength = kwargs.get(f"strength_{i}", 1.0)
 
             # Execution logic mirrored from LTXVAddGuideMulti

@@ -99,7 +99,7 @@
     },
     {
       "id": 376,
-      "type": "CS-LTXSequencer",
+      "type": "LTXSequencer",
       "pos": [
         3900,
         5950
@@ -170,9 +170,9 @@
         }
       ],
       "properties": {
-        "cnr_id": "CS-WhatDreamsCost-ComfyUI",
+        "cnr_id": "WhatDreamsCost-ComfyUI",
         "ver": "ecd00e6b404f14b07c7b54b0b0033e8bccb32d24",
-        "Node name for S&R": "CS-LTXSequencer",
+        "Node name for S&R": "LTXSequencer",
         "num_images": 0,
         "insert_frame_1": 0,
         "strength_1": 1,
@@ -928,7 +928,7 @@
     },
     {
       "id": 381,
-      "type": "CS-MultiImageLoader",
+      "type": "MultiImageLoader",
       "pos": [
         3540,
         5950
@@ -954,9 +954,9 @@
         }
       ],
       "properties": {
-        "cnr_id": "CS-WhatDreamsCost-ComfyUI",
+        "cnr_id": "WhatDreamsCost-ComfyUI",
         "ver": "ecd00e6b404f14b07c7b54b0b0033e8bccb32d24",
-        "Node name for S&R": "CS-MultiImageLoader"
+        "Node name for S&R": "MultiImageLoader"
       },
       "widgets_values": [
         "",
@@ -1161,7 +1161,7 @@
     },
     {
       "id": 499,
-      "type": "CS-LoadAudioUI",
+      "type": "LoadAudioUI",
       "pos": [
         3130,
         5960
@@ -1190,9 +1190,9 @@
         }
       ],
       "properties": {
-        "cnr_id": "CS-WhatDreamsCost-ComfyUI",
+        "cnr_id": "WhatDreamsCost-ComfyUI",
         "ver": "919e3c15e53502a7f9165c4355a635b4fa2a07ae",
-        "Node name for S&R": "CS-LoadAudioUI"
+        "Node name for S&R": "LoadAudioUI"
       },
       "widgets_values": [
         "audio.wav",
@@ -3239,7 +3239,7 @@
           },
           {
             "id": 409,
-            "type": "CS-LTXSequencer",
+            "type": "LTXSequencer",
             "pos": [
               850,
               7140
@@ -3321,9 +3321,9 @@
               }
             ],
             "properties": {
-              "cnr_id": "CS-WhatDreamsCost-ComfyUI",
+              "cnr_id": "WhatDreamsCost-ComfyUI",
               "ver": "ecd00e6b404f14b07c7b54b0b0033e8bccb32d24",
-              "Node name for S&R": "CS-LTXSequencer",
+              "Node name for S&R": "LTXSequencer",
               "num_images": 0,
               "insert_frame_1": 0,
               "strength_1": 1,

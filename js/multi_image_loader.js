@@ -2,9 +2,9 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
 app.registerExtension({
-    name: "Comfy.CS-MultiImageLoader",
+    name: "Comfy.CSMultiImageLoader",
     async nodeCreated(node) {
-        if (node.comfyClass !== "CS-MultiImageLoader") return;
+        if (node.comfyClass !== "CSMultiImageLoader") return;
 
         // Helper to detect if we are in the new Nodes 2.0 / V3 Web Component frontend
         let v3NodeElement = null;
@@ -12,7 +12,7 @@ app.registerExtension({
             if (v3NodeElement) return true;
             let el = container.parentElement;
             while (el) {
-                if ((el.tagName && el.tagName.toLowerCase().includes('comfy-node')) || 
+                if ((el.tagName && el.tagName.toLowerCase().includes('comfy-node')) ||
                     (el.classList && el.classList.contains('comfy-node'))) {
                     v3NodeElement = el;
                     return true;
@@ -26,7 +26,7 @@ app.registerExtension({
         const container = document.createElement("div");
         container.style.cssText = `
             width: 100%;
-            min-height: 250px; 
+            min-height: 250px;
             min-width: 100px; /* Reduced from 400px to allow thin resizing in V3 */
             background: #222222;
             border: 1px solid #353545;
@@ -45,18 +45,18 @@ app.registerExtension({
         const topBar = document.createElement("div");
         // Added flex-wrap: wrap so buttons stack if the node gets extremely thin
         topBar.style.cssText = "display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; width: 100%; gap: 8px;";
-        
+
         const uploadBtn = document.createElement("button");
         uploadBtn.innerText = "Upload Images";
         uploadBtn.style.cssText = `
-            background: #3a3f4b; color: white; border: 1px solid #5a5f6b; 
+            background: #3a3f4b; color: white; border: 1px solid #5a5f6b;
             padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 10px;
         `;
 
         const removeAllBtn = document.createElement("button");
         removeAllBtn.innerText = "Remove All";
         removeAllBtn.style.cssText = `
-            background: #cc2222; color: white; border: 1px solid #aa1111; 
+            background: #cc2222; color: white; border: 1px solid #aa1111;
             padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 10px;
             transition: background 0.2s;
         `;
@@ -87,7 +87,7 @@ app.registerExtension({
             justify-content: center;
             align-content: center;
         `;
-        
+
         gridWrapper.appendChild(grid);
         container.appendChild(gridWrapper);
 
@@ -100,12 +100,23 @@ app.registerExtension({
 
         // Add the Widget to the Node
         const galleryWidget = node.addDOMWidget("Gallery", "html_gallery", container, { serialize: false });
-        
-        galleryWidget.computeSize = function() {
+
+        node.syncLayoutToNode = function() {
+            const nodeWidth = this.size?.[0] || 220;
+            const targetWidth = Math.max(10, nodeWidth - 30);
+            if (container) {
+                container.style.width = `${targetWidth}px`;
+                container.style.maxWidth = `${targetWidth}px`;
+                container.style.boxSizing = "border-box";
+            }
+        };
+
+        galleryWidget.computeSize = function(width) {
             const galleryY = this.last_y || 40;
             const minOutputsHeight = (node.outputs ? node.outputs.length : 1) * 20;
             const requiredGalleryHeight = Math.max(250, minOutputsHeight + 40 - galleryY);
-            return [150, requiredGalleryHeight]; // Changed minimum theoretical widget width
+            const nodeWidth = node.size?.[0] || width || 220;
+            return [Math.max(10, nodeWidth - 30), requiredGalleryHeight];
         };
 
         // --- SAFELY HIDE THE IMAGE_PATHS WIDGET ---
@@ -120,7 +131,7 @@ app.registerExtension({
                 get: () => "hidden",
                 set: () => {} // Ignore attempts by V3 to reset the type
             });
-            
+
             pathsWidget.computeSize = function() {
                 return [0, 0];
             };
@@ -139,13 +150,13 @@ app.registerExtension({
         function setWidgetValue(newPathsArray, isRearranging = false) {
             if (!pathsWidget) return;
             const val = newPathsArray.join("\n");
-            
+
             const tempCallback = pathsWidget.callback;
             pathsWidget.callback = null;
-            
+
             pathsWidget.value = val;
             if (oldCallback) oldCallback.apply(pathsWidget, [val]);
-            
+
             pathsWidget.callback = tempCallback;
             refreshGallery(isRearranging);
         }
@@ -156,7 +167,7 @@ app.registerExtension({
 
             let changed = false;
             const targetTotal = count + 1;
-            
+
             const wasFresh = node.outputs.length >= 50;
 
             while (node.outputs.length > targetTotal && node.outputs.length > 1) {
@@ -192,13 +203,13 @@ app.registerExtension({
         function optimizeGrid(gridW, gridH) {
             const paths = (pathsWidget?.value || "").split(/\n|,/).map(s => s.trim()).filter(s => s);
             const N = paths.length;
-            
+
             if (N === 0) {
                 grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(75px, 1fr))';
                 grid.style.gridAutoRows = 'max-content';
                 return;
             }
-            
+
             if (gridW <= 0 || gridH <= 0) return;
 
             let bestS = 0;
@@ -210,7 +221,7 @@ app.registerExtension({
                 const maxW = Math.max(5, (gridW - (c - 1) * 8) / c);
                 const maxH = Math.max(5, (gridH - (r - 1) * 8) / r);
                 const size = Math.min(maxW, maxH);
-                
+
                 // By using >= instead of strict > (with a tiny 0.1 buffer for float precision),
                 // if multiple column counts yield the exact same optimal cell size
                 // (which happens when height is the bottleneck), we aggressively pack
@@ -220,10 +231,10 @@ app.registerExtension({
                     bestCols = c;
                 }
             }
-            
+
             // Allow grid cells to shrink down to 10px instead of 15 to prevent horizontal overflow in V3
-            bestS = Math.max(10, Math.floor(bestS)); 
-            
+            bestS = Math.max(10, Math.floor(bestS));
+
             grid.style.gridTemplateColumns = `repeat(${bestCols}, ${bestS}px)`;
             grid.style.gridAutoRows = `${bestS}px`;
         }
@@ -247,7 +258,7 @@ app.registerExtension({
                 if (!v3EventsAttached) {
                     v3EventsAttached = true;
                     v3NodeElement.addEventListener("dragover", (e) => {
-                        e.preventDefault(); 
+                        e.preventDefault();
                     });
                     v3NodeElement.addEventListener("drop", (e) => {
                         if (e.dataTransfer && e.dataTransfer.files) {
@@ -264,7 +275,7 @@ app.registerExtension({
         }
 
         let isLayouting = false;
-        
+
         function updateLayout(forceShrink = false) {
             if (isLayouting) return;
             isLayouting = true;
@@ -273,7 +284,7 @@ app.registerExtension({
             const minW = isV3 ? 100 : 200; // 100 in V3, 440 in V1
             const paddingBottom = isV3 ? 15 : 25; // Apply extra 20px pad on V1
 
-            const galleryY = galleryWidget.last_y || 40; 
+            const galleryY = galleryWidget.last_y || 40;
             const minOutputsHeight = (node.outputs ? node.outputs.length : 1) * 20;
             const absoluteMinHeight = Math.max(galleryY + 250 + paddingBottom, minOutputsHeight + 40);
 
@@ -296,7 +307,7 @@ app.registerExtension({
             isLayouting = false;
         }
 
-        // --- OVERRIDE LOGIC FOR RESIZING --- 
+        // --- OVERRIDE LOGIC FOR RESIZING ---
         const origOnResize = node.onResize;
         node.onResize = function(size) {
             const isV3 = checkIsV3();
@@ -306,25 +317,39 @@ app.registerExtension({
             const galleryY = galleryWidget.last_y || 40;
             const minOutputsHeight = (this.outputs ? this.outputs.length : 1) * 20;
             const absoluteMinHeight = Math.max(galleryY + 250 + paddingBottom, minOutputsHeight + 40);
-            
+
             size[0] = Math.max(size[0], minW);
             size[1] = Math.max(size[1], absoluteMinHeight);
 
             if (origOnResize) origOnResize.call(this, size);
-            if (isLayouting) return; 
-            
+            if (this.syncLayoutToNode) {
+                this.syncLayoutToNode();
+            }
+            if (isLayouting) return;
+
             node.min_size = [minW, absoluteMinHeight];
-            enforceV3CSS(); 
-            
+            enforceV3CSS();
+
             const availableGalleryHeight = size[1] - galleryY - paddingBottom;
             container.style.height = availableGalleryHeight + "px";
+        };
+
+        const origOnConfigure = node.onConfigure;
+        node.onConfigure = function(info) {
+            const out = origOnConfigure ? origOnConfigure.apply(this, arguments) : undefined;
+            setTimeout(() => {
+                if (this.syncLayoutToNode) {
+                    this.syncLayoutToNode();
+                }
+            }, 0);
+            return out;
         };
 
         const origComputeSize = node.computeSize;
         node.computeSize = function(out) {
             const isV3 = checkIsV3();
-            const minW = isV3 ? 100 : 220; 
-            const paddingBottom = isV3 ? 15 : 25; 
+            const minW = isV3 ? 100 : 220;
+            const paddingBottom = isV3 ? 15 : 25;
 
             let res = origComputeSize ? origComputeSize.apply(this, arguments) : [minW, 250];
             const galleryY = galleryWidget.last_y || 40;
@@ -334,8 +359,8 @@ app.registerExtension({
             this.min_size = [minW, absoluteMinHeight];
             res[0] = Math.max(res[0], minW);
             res[1] = Math.max(res[1], absoluteMinHeight);
-            
-            enforceV3CSS(); 
+
+            enforceV3CSS();
             return res;
         };
 
@@ -343,7 +368,7 @@ app.registerExtension({
         node.setSize = function(size) {
             const isV3 = checkIsV3();
             const minW = isV3 ? 100 : 220;
-            const paddingBottom = isV3 ? 15 : 25; 
+            const paddingBottom = isV3 ? 15 : 25;
 
             const galleryY = galleryWidget.last_y || 40;
             const minOutputsHeight = (this.outputs ? this.outputs.length : 1) * 20;
@@ -362,13 +387,13 @@ app.registerExtension({
 
         let lastObservedWidth = 0;
         let lastObservedHeight = 0;
-        
+
         const resizeObserver = new ResizeObserver((entries) => {
-            enforceV3CSS(); 
+            enforceV3CSS();
             for (const entry of entries) {
                 const w = Math.round(entry.contentRect.width);
                 const h = Math.round(entry.contentRect.height);
-                
+
                 if (Math.abs(w - lastObservedWidth) > 1 || Math.abs(h - lastObservedHeight) > 1) {
                     lastObservedWidth = w;
                     lastObservedHeight = h;
@@ -389,7 +414,7 @@ app.registerExtension({
         function refreshGallery(isRearranging = false) {
             grid.innerHTML = "";
             const paths = (pathsWidget?.value || "").split(/\n|,/).map(s => s.trim()).filter(s => s);
-            
+
             if (!isRearranging) {
                 syncOutputs(paths.length);
             }
@@ -398,17 +423,17 @@ app.registerExtension({
 
             paths.forEach((path, index) => {
                 const item = document.createElement("div");
-                item.dataset.path = path; 
+                item.dataset.path = path;
                 item.draggable = true;
                 item.style.cssText = `
-                    position: relative; 
+                    position: relative;
                     width: 100%;
                     height: 100%;
-                    aspect-ratio: 1 / 1; 
-                    background: #000000; 
-                    border-radius: 4px; 
-                    border: 1px solid #444; 
-                    overflow: hidden; 
+                    aspect-ratio: 1 / 1;
+                    background: #000000;
+                    border-radius: 4px;
+                    border: 1px solid #444;
+                    overflow: hidden;
                     cursor: grab;
                     display: flex;
                     align-items: center;
@@ -420,13 +445,13 @@ app.registerExtension({
                 // Allow pointer-events so context menu interacts directly with the image
                 img.style.cssText = "max-width: 100%; max-height: 100%; object-fit: contain; pointer-events: auto; display: block;";
                 img.draggable = false; // Prevent native browser ghost dragging on the image itself
-                
+
                 const del = document.createElement("div");
                 del.style.cssText = `
-                    position: absolute; top: 0; right: 0; 
-                    background: #cc2222; color: white; 
-                    width: 18px; height: 18px; 
-                    display: flex; align-items: center; justify-content: center; 
+                    position: absolute; top: 0; right: 0;
+                    background: #cc2222; color: white;
+                    width: 18px; height: 18px;
+                    display: flex; align-items: center; justify-content: center;
                     font-size: 14px; cursor: pointer; z-index: 10;
                     font-family: Arial, sans-serif; font-weight: bold;
                     line-height: 1; border-bottom-left-radius: 4px;
@@ -435,10 +460,10 @@ app.registerExtension({
                 del.innerHTML = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M1 1L9 9M9 1L1 9" stroke="white" stroke-width="2" stroke-linecap="round"/>
                 </svg>`;
-                
+
                 del.onmouseenter = () => { del.style.background = "#ff3333"; };
                 del.onmouseleave = () => { del.style.background = "#cc2222"; };
-                
+
                 del.onclick = (e) => {
                     e.stopPropagation();
                     const newPaths = paths.filter((_, i) => i !== index);
@@ -447,8 +472,8 @@ app.registerExtension({
 
                 const numBadge = document.createElement("div");
                 numBadge.style.cssText = `
-                    position: absolute; bottom: 0; left: 0; 
-                    background: rgba(0, 0, 0, 0.75); color: #fff; 
+                    position: absolute; bottom: 0; left: 0;
+                    background: rgba(0, 0, 0, 0.75); color: #fff;
                     padding: 2px 6px; font-size: 11px; font-family: sans-serif;
                     font-weight: bold; border-top-right-radius: 4px; pointer-events: none;
                     z-index: 5;
@@ -460,13 +485,13 @@ app.registerExtension({
                     e.stopPropagation();
                 });
 
-                item.ondragstart = (e) => { 
-                    draggedNode = item; 
-                    
+                item.ondragstart = (e) => {
+                    draggedNode = item;
+
                     e.dataTransfer.setData('text/plain', path);
                     e.dataTransfer.effectAllowed = "move";
-                    
-                    setTimeout(() => { 
+
+                    setTimeout(() => {
                         if (draggedNode === item) {
                             // Style as an empty dashed placeholder
                             item.style.background = "transparent";
@@ -476,16 +501,16 @@ app.registerExtension({
                         }
                     }, 0);
                 };
-                
-                item.ondragend = () => { 
+
+                item.ondragend = () => {
                     if (draggedNode) {
                         // Restore original appearance
                         draggedNode.style.background = "#000000";
                         draggedNode.style.border = "1px solid #444";
                         Array.from(draggedNode.children).forEach(c => c.style.opacity = "1");
                     }
-                    draggedNode = null; 
-                    
+                    draggedNode = null;
+
                     const newPaths = Array.from(grid.children).map(n => n.dataset.path);
                     const currentVal = (pathsWidget?.value || "").trim();
                     if (newPaths.join("\n") !== currentVal) {
@@ -493,9 +518,9 @@ app.registerExtension({
                     }
                 };
 
-                item.ondragover = (e) => { 
-                    e.preventDefault(); 
-                    e.stopPropagation(); 
+                item.ondragover = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     if (!draggedNode || draggedNode === item) return;
 
                     const distMoved = Math.hypot(e.clientX - lastSwapX, e.clientY - lastSwapY);
@@ -504,9 +529,9 @@ app.registerExtension({
                     }
 
                     const itemRect = item.getBoundingClientRect();
-                    const bufferX = itemRect.width * 0.25; 
+                    const bufferX = itemRect.width * 0.25;
                     const bufferY = itemRect.height * 0.25;
-                    
+
                     if (e.clientX < itemRect.left + bufferX || e.clientX > itemRect.right - bufferX ||
                         e.clientY < itemRect.top + bufferY || e.clientY > itemRect.bottom - bufferY) {
                         return;
@@ -527,10 +552,10 @@ app.registerExtension({
                     lastSwapY = e.clientY;
                     lastSwapTime = Date.now();
                 };
-                
+
                 item.ondrop = (e) => {
                     e.preventDefault();
-                    e.stopPropagation(); 
+                    e.stopPropagation();
                 };
 
                 item.appendChild(img);
@@ -605,20 +630,20 @@ app.registerExtension({
 
         uploadBtn.onclick = () => fileInput.click();
         fileInput.onchange = (e) => handleFiles(e.target.files);
-        
-        container.ondragover = (e) => { 
-            e.preventDefault(); 
-            e.stopPropagation(); 
-            container.style.borderColor = "#4CAF50"; 
-        };
-        container.ondragleave = (e) => { 
+
+        container.ondragover = (e) => {
             e.preventDefault();
-            e.stopPropagation(); 
-            container.style.borderColor = "#353545"; 
+            e.stopPropagation();
+            container.style.borderColor = "#4CAF50";
+        };
+        container.ondragleave = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            container.style.borderColor = "#353545";
         };
         container.ondrop = (e) => {
             e.preventDefault();
-            e.stopPropagation(); 
+            e.stopPropagation();
             container.style.borderColor = "#353545";
             if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
         };
@@ -638,7 +663,7 @@ app.registerExtension({
 
                 if (files.length > 0) {
                     e.preventDefault();
-                    e.stopImmediatePropagation(); 
+                    e.stopImmediatePropagation();
                     handleFiles(files);
                 }
             }
@@ -683,6 +708,9 @@ app.registerExtension({
             }
         };
 
-        setTimeout(() => refreshGallery(), 100);
+        setTimeout(() => {
+            refreshGallery();
+            node.syncLayoutToNode();
+        }, 100);
     }
 });

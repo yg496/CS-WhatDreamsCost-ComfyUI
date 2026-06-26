@@ -72,18 +72,18 @@ const cssStyles = `
     .slc-card.slow::before { background-color: #93c5fd; }
     .slc-card.avg::before { background-color: #86efac; }
     .slc-card.fast::before { background-color: #fca5a5; }
-    
+
     .slc-card-left { display: flex; flex-direction: column; }
     .slc-card-speed { font-size: 12px; font-weight: bold; margin-bottom: 2px; }
     .slc-card.slow .slc-card-speed { color: #93c5fd; }
     .slc-card.avg .slc-card-speed { color: #86efac; }
     .slc-card.fast .slc-card-speed { color: #fca5a5; }
     .slc-card-wpm { font-size: 10px; color: #aaaaaa; }
-    
+
     .slc-card-right { display: flex; flex-direction: column; align-items: flex-end; }
     .slc-card-time { font-size: 13px; font-weight: bold; color: #ffffff; margin-bottom: 2px; }
     .slc-card-frames { font-size: 11px; font-family: monospace; color: #888888; }
-    
+
     .slc-legend {
         margin-top: auto;
         padding-top: 8px;
@@ -111,7 +111,7 @@ function buildUIHTML(statsData) {
             </div>
         `;
     }
-    
+
     return `
         <div class="slc-headers">
             <div class="slc-header-block">
@@ -160,9 +160,9 @@ function buildUIHTML(statsData) {
 }
 
 app.registerExtension({
-    name: "Comfy.CS-SpeechLengthCalculator",
+    name: "Comfy.CSSpeechLengthCalculator",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        if (nodeData.name === "CS-SpeechLengthCalculator") {
+        if (nodeData.name === "CSSpeechLengthCalculator") {
 
             const onNodeCreated = nodeType.prototype.onNodeCreated;
             nodeType.prototype.onNodeCreated = function () {
@@ -198,12 +198,12 @@ app.registerExtension({
 
                 // Ensure the node is wide enough on initial creation
                 requestAnimationFrame(() => {
-                    const minWidth = 340; 
+                    const minWidth = 340;
                     if (this.size[0] < minWidth) this.size[0] = minWidth;
-                    
+
                     // Fine tune initial height to account for the larger computeSize and make text box taller
-                    if (this.size[1] < 500) this.size[1] = 500; 
-                    
+                    if (this.size[1] < 500) this.size[1] = 500;
+
                     this.setDirtyCanvas(true, true);
                 });
 
@@ -237,12 +237,12 @@ app.registerExtension({
                     const additionalTime = additionalTimeWidget ? parseFloat(additionalTimeWidget.value) || 0 : 0;
 
                     // Skip expensive calculations if nothing changed
-                    if (this._lastState.text === text && 
-                        this._lastState.fps === fps && 
+                    if (this._lastState.text === text &&
+                        this._lastState.fps === fps &&
                         this._lastState.addTime === additionalTime) {
                         return;
                     }
-                    
+
                     this._lastState.text = text;
                     this._lastState.fps = fps;
                     this._lastState.addTime = additionalTime;
@@ -260,7 +260,7 @@ app.registerExtension({
                     const formatTime = (wpm) => {
                         const baseMins = wordCount / wpm;
                         const totalSecs = (baseMins * 60) + additionalTime;
-                        
+
                         const mins = Math.floor(totalSecs / 60);
                         let secs = totalSecs % 60;
                         secs = Math.ceil(secs * 10) / 10;
@@ -268,7 +268,7 @@ app.registerExtension({
 
                         const secsStr = secs.toFixed(1);
                         const timeStr = mins > 0 ? `${mins}m ${secsStr}s` : `${secsStr}s`;
-                        
+
                         return {
                             time: timeStr,
                             frames: frames.toString()
@@ -283,15 +283,15 @@ app.registerExtension({
                         avg: formatTime(130),
                         fast: formatTime(160)
                     };
-                    
+
                     // 4. INJECT HTML TO THE DOM
                     // Replaces the heavy canvas redrawing!
                     uiContainer.innerHTML = buildUIHTML(statsData);
-                    
+
                     this.setDirtyCanvas(true, false);
                 };
 
-                // We still use onDrawBackground as an efficient silent trigger 
+                // We still use onDrawBackground as an efficient silent trigger
                 // to auto-update in case upstream nodes silently change their text
                 const onDrawBackground = this.onDrawBackground;
                 this.onDrawBackground = function(ctx) {

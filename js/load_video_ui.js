@@ -2,9 +2,9 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
 app.registerExtension({
-    name: "Comfy.CS-LoadVideoUI",
+    name: "Comfy.CSLoadVideoUI",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        if (nodeData.name === "CS-LoadVideoUI") {
+        if (nodeData.name === "CSLoadVideoUI") {
             const onNodeCreated = nodeType.prototype.onNodeCreated;
             const onConfigure = nodeType.prototype.onConfigure;
             const onResize = nodeType.prototype.onResize;
@@ -27,9 +27,15 @@ app.registerExtension({
                         this.updatePreview(videoWidget.value);
                     }
                 }
+
+                if (this.syncLayoutToNode) {
+                    setTimeout(() => {
+                        this.syncLayoutToNode();
+                    }, 0);
+                }
             };
 
-            // Continuous frame-accurate check to guarantee exact height alignment 
+            // Continuous frame-accurate check to guarantee exact height alignment
             // even on initial graph load when the workflow reloads!
             nodeType.prototype.onDrawForeground = function (ctx) {
                 if (onDrawForeground) onDrawForeground.apply(this, arguments);
@@ -49,9 +55,10 @@ app.registerExtension({
             // Allow the node to scale nicely when resized by the user
             nodeType.prototype.onResize = function (size) {
                 if (onResize) onResize.apply(this, arguments);
+                if (this.syncLayoutToNode) {
+                    this.syncLayoutToNode();
+                }
                 if (this.domWidget && this.domWidget.element) {
-                    // Fill the exact width provided by LiteGraph's bounds natively
-                    this.domWidget.element.style.width = "100%";
                     this.domWidget.element.style.margin = "0";
 
                     // Fallback calc if last_y isn't ready
@@ -185,7 +192,7 @@ app.registerExtension({
 
                     // Check if absolute path (Starts with C:\ or /)
                     if (filename.match(/^[a-zA-Z]:\\/) || filename.startsWith('/')) {
-                        url = api.apiURL(`/video_ui_custom_view?filename=${encodeURIComponent(filename)}`);
+                        url = api.apiURL(`/cs_video_ui_custom_view?filename=${encodeURIComponent(filename)}`);
                     } else {
                         url = api.apiURL(`/view?filename=${encodeURIComponent(filename)}&type=input`);
                     }
@@ -233,6 +240,26 @@ app.registerExtension({
                             return;
                         }
 
+                        // First check if the file already exists on the server to de-duplicate
+                        const safeFileName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+                        try {
+                            const checkResp = await api.fetchApi(`/cs_ltx_director_check_file?filename=${encodeURIComponent(safeFileName)}&size=${file.size}`);
+                            if (checkResp.status === 200) {
+                                const checkResult = await checkResp.json();
+                                if (checkResult.exists) {
+                                    console.log(`[CSLoadVideoUI] File already exists: ${checkResult.name}. Reusing existing file.`);
+                                    videoWidget.value = checkResult.name;
+                                    node.updatePreview(checkResult.name);
+                                    if (startTimeWidget) startTimeWidget.value = 0;
+                                    if (endTimeWidget) endTimeWidget.value = 0;
+                                    node.syncFramesFromTime();
+                                    return;
+                                }
+                            }
+                        } catch (e) {
+                            console.warn("[CSLoadVideoUI] Failed to check for existing file, proceeding with upload", e);
+                        }
+
                         btnWidget.name = "Uploading...";
                         node.setDirtyCanvas(true, false);
 
@@ -255,7 +282,7 @@ app.registerExtension({
                                 formData.append("chunk_index", i);
                                 formData.append("total_chunks", totalChunks);
 
-                                const resp = await api.fetchApi("/video_ui_upload_chunk", {
+                                const resp = await api.fetchApi("/cs_video_ui_upload_chunk", {
                                     method: "POST",
                                     body: formData,
                                 });
@@ -277,6 +304,7 @@ app.registerExtension({
                             // Standard upload for small files
                             const body = new FormData();
                             body.append("image", file);
+                            body.append("subfolder", "cs_whatdreamscost");
 
                             const resp = await api.fetchApi("/upload/image", {
                                 method: "POST",
@@ -880,16 +908,27 @@ app.registerExtension({
 
                 container.appendChild(trimArea);
 
+                node.syncLayoutToNode = function() {
+                    const nodeWidth = this.size?.[0] || 690;
+                    const targetWidth = Math.max(10, nodeWidth - 30);
+                    if (container) {
+                        container.style.width = `${targetWidth}px`;
+                        container.style.maxWidth = `${targetWidth}px`;
+                        container.style.boxSizing = "border-box";
+                    }
+                };
+
                 // Delay DOM Widget creation to ensure it is added after all standard widgets
                 setTimeout(() => {
                     // Add HTML widget to LiteGraph
                     node.domWidget = node.addDOMWidget("VideoUI", "div", container);
 
                     // Fixed: Return a solid minimum required bounding box.
-                    // Bumped horizontal from 200px to 360px. This natively stops LiteGraph 
+                    // Bumped horizontal from 200px to 360px. This natively stops LiteGraph
                     // from letting the node be squished too thin, completely preventing overlap.
-                    node.domWidget.computeSize = function () {
-                        return [360, 250];
+                    node.domWidget.computeSize = function (width) {
+                        const nodeWidth = node.size?.[0] || width || 690;
+                        return [Math.max(10, nodeWidth - 30), 250];
                     };
 
                     // Applies the default creation bounds natively, increased default height
@@ -906,6 +945,7 @@ app.registerExtension({
                         }
 
                         // Trigger manual resize call so the vertical math applies instantly
+                        node.syncLayoutToNode();
                         if (node.onResize) node.onResize(node.size);
 
                         // Sync visual toggle to initial data
@@ -1339,7 +1379,7 @@ app.registerExtension({
                         // Keeps its blue styling securely
                     }
 
-                    // Only automatically push data directly to durationWidget if a real video is loaded 
+                    // Only automatically push data directly to durationWidget if a real video is loaded
                     if (duration > 0 && !isUpdatingDuration) {
                         isUpdatingDuration = true;
                         if (durationWidget && durationWidget.value !== currentDur) {

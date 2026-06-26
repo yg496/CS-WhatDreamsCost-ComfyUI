@@ -2,28 +2,48 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
 app.registerExtension({
-    name: "Comfy.CS-LoadAudioUI",
+    name: "Comfy.CSLoadAudioUI",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        if (nodeData.name === "CS-LoadAudioUI") {
+        if (nodeData.name === "CSLoadAudioUI") {
             const onNodeCreated = nodeType.prototype.onNodeCreated;
             const onDrawBackground = nodeType.prototype.onDrawBackground;
-            
+            const onConfigure = nodeType.prototype.onConfigure;
+            const onResize = nodeType.prototype.onResize;
+
             // --- V1 LiteGraph Image Preview Hider ---
             nodeType.prototype.onDrawBackground = function (ctx) {
                 if (onDrawBackground) {
                     onDrawBackground.apply(this, arguments);
                 }
             };
-            
+
+            nodeType.prototype.onResize = function (size) {
+                const out = onResize ? onResize.apply(this, arguments) : undefined;
+                if (this.syncLayoutToNode) {
+                    this.syncLayoutToNode();
+                }
+                return out;
+            };
+
+            nodeType.prototype.onConfigure = function (info) {
+                const out = onConfigure ? onConfigure.apply(this, arguments) : undefined;
+                setTimeout(() => {
+                    if (this.syncLayoutToNode) {
+                        this.syncLayoutToNode();
+                    }
+                }, 0);
+                return out;
+            };
+
             nodeType.prototype.onNodeCreated = function () {
                 // Ensure standard creation logic runs first
                 const r = onNodeCreated ? onNodeCreated.apply(this, arguments) : undefined;
                 const node = this; // Capture the node instance
-                
+
                 // Track if we are in the initial loading phase to prevent resetting saved trim values
                 node._initializing = true;
                 node._should_reset_trim = false;
-				               
+
                 // ====================================================================
                 // FIX: HIDE DEFAULT COMFYUI AUDIO PLAYER SAFELY
                 // ====================================================================
@@ -41,13 +61,13 @@ app.registerExtension({
                             w.type = "hidden";
                             w.hidden = true;
                             w.computeSize = () => [0, 0];
-                            
-                            // Only update height to account for the hidden widget, 
+
+                            // Only update height to account for the hidden widget,
                             // preserving the width (whether it's the default 475 or a user-saved value).
                             const currentWidth = node.size[0];
                             const recommendedHeight = node.computeSize()[1];
                             node.setSize([currentWidth, recommendedHeight]);
-                            
+
                             if (app.graph) {
                                 app.graph.setDirtyCanvas(true, true);
                             }
@@ -56,7 +76,7 @@ app.registerExtension({
                 }, 10);
                 // ====================================================================
 
-				
+
                 // --- THE CORE FIX FOR COMFYUI V2 ---
                 Object.defineProperty(node, 'imgs', {
                     get: function() { return undefined; },
@@ -71,8 +91,8 @@ app.registerExtension({
                         const body = new FormData();
                         body.append("image", file);
                         body.append("type", "input");
-                        body.append("subfolder", "");
-                        
+                        body.append("subfolder", "cs_whatdreamscost");
+
                         const resp = await api.fetchApi("/upload/image", {
                             method: "POST",
                             body,
@@ -117,9 +137,9 @@ app.registerExtension({
                 Object.assign(container.style, {
                     display: "flex",
                     flexDirection: "column",
-                    gap: "10px", 
+                    gap: "10px",
                     width: "100%",
-                    padding: "10px", 
+                    padding: "10px",
                     boxSizing: "border-box",
                     background: defaultBg,
                     borderRadius: "6px",
@@ -138,7 +158,7 @@ app.registerExtension({
                     padding: "0 2px",
                     marginBottom: "-4px"
                 });
-                
+
                 const playerTitle = document.createElement("span");
                 playerTitle.textContent = "No audio selected";
                 Object.assign(playerTitle.style, {
@@ -238,26 +258,37 @@ app.registerExtension({
                 sliderBox.appendChild(startHandle);
                 sliderBox.appendChild(endHandle);
                 trimArea.appendChild(sliderBox);
-                
+
                 container.appendChild(trimArea);
 
                 // 4. Attach container to the node UI
                 const widget = this.addDOMWidget("audio_ui", "audio_ui", container);
-                
+
                 // --- DEFAULT SIZE FOR NEW NODES ---
                 this.size = [475, this.computeSize()[1]];
-                
-                widget.computeSize = function(width) {
-                    return [width, 200];
+
+                node.syncLayoutToNode = function() {
+                    const nodeWidth = this.size?.[0] || 475;
+                    const targetWidth = Math.max(10, nodeWidth - 30);
+                    if (container) {
+                        container.style.width = `${targetWidth}px`;
+                        container.style.maxWidth = `${targetWidth}px`;
+                        container.style.boxSizing = "border-box";
+                    }
                 };
 
-                // 5. Bind Node Data to UI dynamically 
+                widget.computeSize = function(width) {
+                    const nodeWidth = node.size?.[0] || width || 475;
+                    return [Math.max(10, nodeWidth - 30), 200];
+                };
+
+                // 5. Bind Node Data to UI dynamically
                 setTimeout(() => {
                     const audioWidget = node.widgets && node.widgets.find(w => w.name === "audio");
                     const startWidget = node.widgets && node.widgets.find(w => w.name === "start_time");
                     const endWidget = node.widgets && node.widgets.find(w => w.name === "end_time");
                     const durationWidget = node.widgets && node.widgets.find(w => w.name === "duration");
-                    
+
                     let duration = 0;
                     let dragging = null;
                     let dragOffset = 0;
@@ -273,7 +304,7 @@ app.registerExtension({
                                 if (origCallback) origCallback.apply(this, arguments);
                                 return;
                             }
-                            
+
                             isUpdatingDuration = true;
                             let d = parseFloat(v) || 0;
                             if (d < 0) d = 0;
@@ -294,12 +325,12 @@ app.registerExtension({
 
                             updateUI(true);
                             app.graph.setDirtyCanvas(true, false);
-                            
+
                             if (origCallback) origCallback.apply(this, arguments);
                             isUpdatingDuration = false;
                         };
                     }
-                    
+
                     if (audioWidget) {
                         const updateAudio = () => {
                             if (!audioWidget.value || audioWidget.value === "none") {
@@ -358,7 +389,7 @@ app.registerExtension({
                         if (!duration) return;
                         const numMajorTicks = 5;
                         const subTicks = 4;
-                        const totalTicks = (numMajorTicks - 1) * subTicks; 
+                        const totalTicks = (numMajorTicks - 1) * subTicks;
                         for (let i = 0; i <= totalTicks; i++) {
                             const pct = i / totalTicks;
                             const t = duration * pct;
@@ -384,7 +415,7 @@ app.registerExtension({
                             timeRuler.appendChild(tickWrapper);
                         }
                     };
-                    
+
                     const updateUI = (syncPlayer = false) => {
                         if (!duration) return;
                         let s = startWidget ? parseFloat(startWidget.value) || 0 : 0;
@@ -397,7 +428,7 @@ app.registerExtension({
                         endHandle.style.left = `${ePct}%`;
                         fill.style.left = `${sPct}%`;
                         fill.style.width = `${ePct - sPct}%`;
-                        
+
                         // Sync native duration widget seamlessly to match UI handles
                         const currentDur = parseFloat((e - s).toFixed(2));
                         trimLength.textContent = `Trimmed: ${currentDur}s`;
@@ -406,13 +437,13 @@ app.registerExtension({
                             durationWidget.value = currentDur;
                             isUpdatingDuration = false;
                         }
-                        
+
                         if (syncPlayer && audioEl.readyState >= 1) { audioEl.currentTime = s; }
                     };
 
                     audioEl.onloadedmetadata = () => {
                         duration = audioEl.duration;
-                        
+
                         // Handle trim reset for new audio selection
                         if (node._should_reset_trim) {
                             if (startWidget) startWidget.value = 0;
@@ -421,12 +452,12 @@ app.registerExtension({
                         } else {
                             // Default clamping logic for initial load or out-of-bounds saved values
                             let e = endWidget ? parseFloat(endWidget.value) || 0 : 0;
-                            if (endWidget && (e === 0 || e > duration)) { 
-                                endWidget.value = parseFloat(duration.toFixed(2)); 
+                            if (endWidget && (e === 0 || e > duration)) {
+                                endWidget.value = parseFloat(duration.toFixed(2));
                             }
                         }
-                        
-                        updateRuler(); 
+
+                        updateRuler();
                         updateUI();
                         app.graph.setDirtyCanvas(true, false);
                     };
@@ -460,10 +491,10 @@ app.registerExtension({
                         const val = (x / rect.width) * duration;
                         let s = startWidget ? parseFloat(startWidget.value) || 0 : 0;
                         let e_val = endWidget ? parseFloat(endWidget.value) || duration : duration;
-                        
+
                         // Define a "handle tolerance" zone (approx 10px on each side) to prioritize resizing over dragging
                         const handleTolerance = (10 / rect.width) * duration;
-                        
+
                         if (val > s + handleTolerance && val < e_val - handleTolerance) {
                             dragging = 'center';
                             dragOffset = val - s;
@@ -493,7 +524,7 @@ app.registerExtension({
                         } else if (dragging === 'center') {
                             let newStart = val - dragOffset;
                             let newEnd = newStart + dragSelectionWidth;
-                            
+
                             // Clamp to bounds
                             if (newStart < 0) {
                                 newStart = 0;
@@ -502,7 +533,7 @@ app.registerExtension({
                                 newEnd = duration;
                                 newStart = duration - dragSelectionWidth;
                             }
-                            
+
                             if(startWidget) startWidget.value = parseFloat(newStart.toFixed(2));
                             if(endWidget) endWidget.value = parseFloat(newEnd.toFixed(2));
                         }
@@ -514,6 +545,8 @@ app.registerExtension({
                     // Exit initialization phase
                     setTimeout(() => { node._initializing = false; }, 500);
 
+                    // Call syncLayoutToNode initially
+                    node.syncLayoutToNode();
                 }, 100);
                 return r;
             }

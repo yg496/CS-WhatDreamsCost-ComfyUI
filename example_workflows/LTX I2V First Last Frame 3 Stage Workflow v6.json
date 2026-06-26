@@ -390,7 +390,7 @@
     },
     {
       "id": 381,
-      "type": "CS-MultiImageLoader",
+      "type": "MultiImageLoader",
       "pos": [
         3550,
         5950
@@ -415,9 +415,9 @@
         }
       ],
       "properties": {
-        "cnr_id": "CS-WhatDreamsCost-ComfyUI",
+        "cnr_id": "WhatDreamsCost-ComfyUI",
         "ver": "ecd00e6b404f14b07c7b54b0b0033e8bccb32d24",
-        "Node name for S&R": "CS-MultiImageLoader"
+        "Node name for S&R": "MultiImageLoader"
       },
       "widgets_values": [
         "",
@@ -599,7 +599,7 @@
     },
     {
       "id": 376,
-      "type": "CS-LTXSequencer",
+      "type": "LTXSequencer",
       "pos": [
         3920,
         5950
@@ -662,9 +662,9 @@
         }
       ],
       "properties": {
-        "cnr_id": "CS-WhatDreamsCost-ComfyUI",
+        "cnr_id": "WhatDreamsCost-ComfyUI",
         "ver": "ecd00e6b404f14b07c7b54b0b0033e8bccb32d24",
-        "Node name for S&R": "CS-LTXSequencer",
+        "Node name for S&R": "LTXSequencer",
         "num_images": 0,
         "insert_frame_1": 0,
         "strength_1": 1,
@@ -2816,7 +2816,7 @@
           },
           {
             "id": 409,
-            "type": "CS-LTXSequencer",
+            "type": "LTXSequencer",
             "pos": [
               850,
               7140
@@ -2889,9 +2889,9 @@
               }
             ],
             "properties": {
-              "cnr_id": "CS-WhatDreamsCost-ComfyUI",
+              "cnr_id": "WhatDreamsCost-ComfyUI",
               "ver": "ecd00e6b404f14b07c7b54b0b0033e8bccb32d24",
-              "Node name for S&R": "CS-LTXSequencer",
+              "Node name for S&R": "LTXSequencer",
               "num_images": 0,
               "insert_frame_1": 0,
               "strength_1": 1,
@@ -4689,7 +4689,7 @@
           },
           {
             "id": 411,
-            "type": "CS-LTXSequencer",
+            "type": "LTXSequencer",
             "pos": [
               720,
               7110
@@ -4760,9 +4760,9 @@
               }
             ],
             "properties": {
-              "cnr_id": "CS-WhatDreamsCost-ComfyUI",
+              "cnr_id": "WhatDreamsCost-ComfyUI",
               "ver": "ecd00e6b404f14b07c7b54b0b0033e8bccb32d24",
-              "Node name for S&R": "CS-LTXSequencer",
+              "Node name for S&R": "LTXSequencer",
               "num_images": 0,
               "insert_frame_1": 0,
               "strength_1": 1,

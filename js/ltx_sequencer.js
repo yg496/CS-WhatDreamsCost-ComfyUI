@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 
-// Global registry to track all CS-LTXSequencer nodes across all subgraphs
+// Global registry to track all CSLTXSequencer nodes across all subgraphs
 window._CSLTXSequencerGlobalNodes = window._CSLTXSequencerGlobalNodes || new Set();
 
 // ComfyUI native trick to cleanly hide/show widgets without deleting them
@@ -23,13 +23,13 @@ function toggleWidget(widget, visible) {
 }
 
 /**
- * FULL STATE SYNC: 
- * Instead of syncing one widget, we push the entire properties object 
+ * FULL STATE SYNC:
+ * Instead of syncing one widget, we push the entire properties object
  * to ensure no values are ever lost during subgraph transitions or deletions.
  */
 function syncFullStateAcrossNodes(sourceNode) {
     if (!window._CSLTXSequencerGlobalNodes) return;
-    
+
     for (const targetNode of window._CSLTXSequencerGlobalNodes) {
         if (targetNode === sourceNode) continue;
 
@@ -61,15 +61,15 @@ function syncFullStateAcrossNodes(sourceNode) {
                 targetNode._updateVisibility();
             }
         }
-        
+
         targetNode.setDirtyCanvas(true, false);
     }
 }
 
 app.registerExtension({
-    name: "Comfy.CS-LTXSequencer.DynamicInputs",
+    name: "Comfy.CSLTXSequencer.DynamicInputs",
     async nodeCreated(node) {
-        if (node.comfyClass !== "CS-LTXSequencer") return;
+        if (node.comfyClass !== "CSLTXSequencer") return;
 
         // Register this node instance globally
         window._CSLTXSequencerGlobalNodes.add(node);
@@ -97,7 +97,7 @@ app.registerExtension({
                 return [width, 10];
             }
         });
-        
+
         // Move separator before num_images
         const moveSeparator = () => {
             const idx = node.widgets.findIndex(w => w.name === "num_images");
@@ -119,11 +119,11 @@ app.registerExtension({
                     const orig = w.callback;
                     w.callback = (val) => {
                         this.properties[name] = val;
-                        
+
                         if (name === "num_images") {
                             this._applyWidgetCount(val);
                         }
-                        
+
                         // Push full state to siblings
                         syncFullStateAcrossNodes(this);
 
@@ -141,17 +141,17 @@ app.registerExtension({
         node._updateVisibility = function() {
             const mode = this.properties["insert_mode"] || "frames";
             if (!this.widgets) return;
-            
+
             let changed = false;
             for (const w of this.widgets) {
                 let shouldBeVisible = true;
-                
+
                 if (w.name.startsWith("insert_frame_")) {
                     shouldBeVisible = (mode === "frames");
                 } else if (w.name.startsWith("insert_second_")) {
                     shouldBeVisible = (mode === "seconds");
                 }
-                
+
                 const isHidden = (w.type === "hidden");
                 if (shouldBeVisible && isHidden) {
                     toggleWidget(w, true);
@@ -161,7 +161,7 @@ app.registerExtension({
                     changed = true;
                 }
             }
-            
+
             if (changed) {
                 this.setDirtyCanvas(true, true);
                 requestAnimationFrame(() => {
@@ -198,9 +198,9 @@ app.registerExtension({
 
             // 2. Clear dynamic widgets
             if (this.widgets) {
-                this.widgets = this.widgets.filter(w => 
-                    !w.name.startsWith("insert_frame_") && 
-                    !w.name.startsWith("insert_second_") && 
+                this.widgets = this.widgets.filter(w =>
+                    !w.name.startsWith("insert_frame_") &&
+                    !w.name.startsWith("insert_second_") &&
                     !w.name.startsWith("strength_") &&
                     !w.name.startsWith("header_")
                 );
@@ -295,12 +295,12 @@ app.registerExtension({
             }
             if (originalOnSerialize) originalOnSerialize.apply(this, arguments);
             info.properties = { ...this.properties };
-            
+
             const strictArray = [];
             strictArray.push(this.properties["num_images"] !== undefined ? this.properties["num_images"] : 1);
             strictArray.push(this.properties["insert_mode"] !== undefined ? this.properties["insert_mode"] : "frames");
             strictArray.push(this.properties["frame_rate"] !== undefined ? this.properties["frame_rate"] : 24);
-            
+
             for (let i = 1; i <= 50; i++) {
                 strictArray.push(this.properties[`insert_frame_${i}`] !== undefined ? this.properties[`insert_frame_${i}`] : 0);
                 strictArray.push(this.properties[`insert_second_${i}`] !== undefined ? this.properties[`insert_second_${i}`] : 0.0);
@@ -313,7 +313,7 @@ app.registerExtension({
             const multiInput = self.inputs?.find(inp => inp.name === "multi_input");
             if (!multiInput || !multiInput.link) return null;
             const nodeGraph = self.graph || app.graph;
-            
+
             function traceUpstream(graph, linkId, visited = new Set()) {
                 if (!linkId || visited.has(linkId)) return null;
                 visited.add(linkId);
@@ -321,14 +321,14 @@ app.registerExtension({
                 if (!link) return null;
                 const originNode = graph.getNodeById(link.origin_id);
                 if (!originNode) return null;
-                if (originNode.comfyClass === "CS-MultiImageLoader") return originNode;
+                if (originNode.comfyClass === "CSMultiImageLoader") return originNode;
                 if (originNode.type === "Reroute" || originNode.comfyClass === "Reroute") {
                     if (originNode.inputs?.[0]?.link) return traceUpstream(graph, originNode.inputs[0].link, visited);
                 }
                 if (typeof originNode.getInnerNode === "function") {
                     try {
                         const innerNode = originNode.getInnerNode(link.origin_slot);
-                        if (innerNode?.comfyClass === "CS-MultiImageLoader") return innerNode;
+                        if (innerNode?.comfyClass === "CSMultiImageLoader") return innerNode;
                     } catch (e) {}
                 }
                 return null;
@@ -347,7 +347,7 @@ app.registerExtension({
             function findAllLoaders(nodes) {
                 if (!nodes) return;
                 for (let n of nodes) {
-                    if (n.comfyClass === "CS-MultiImageLoader") multiImageLoaders.push(n);
+                    if (n.comfyClass === "CSMultiImageLoader") multiImageLoaders.push(n);
                     if (n.subgraph?._nodes) findAllLoaders(n.subgraph._nodes);
                 }
             }

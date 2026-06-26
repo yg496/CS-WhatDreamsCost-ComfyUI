@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 
-// Global registry to track all CS-LTXKeyframer nodes across all subgraphs
+// Global registry to track all CSLTXKeyframer nodes across all subgraphs
 window._CSLTXKeyframerGlobalNodes = window._CSLTXKeyframerGlobalNodes || new Set();
 
 // ComfyUI native trick to cleanly hide/show widgets without deleting them
@@ -23,18 +23,18 @@ function toggleWidget(widget, visible) {
 }
 
 // --- NEW SYNC HELPER FUNCTION ---
-// Finds all other CS-LTXKeyframer nodes globally and mirrors the value to them
+// Finds all other CSLTXKeyframer nodes globally and mirrors the value to them
 function syncWidgetAcrossNodes(sourceNode, widgetName, value) {
     if (!window._CSLTXKeyframerGlobalNodes) return;
-    
+
     for (const targetNode of window._CSLTXKeyframerGlobalNodes) {
-        // Target all OTHER CS-LTXKeyframer nodes by direct object reference
+        // Target all OTHER CSLTXKeyframer nodes by direct object reference
         if (targetNode !== sourceNode) {
-            
-            // 1. Always update the hidden properties cache so it remembers the sync 
+
+            // 1. Always update the hidden properties cache so it remembers the sync
             // even if the widget isn't currently visible (e.g. fewer images loaded right now)
             targetNode.properties[widgetName] = value;
-            
+
             // 2. If the widget is currently visible on the UI, update it visually
             if (targetNode.widgets) {
                 const targetWidget = targetNode.widgets.find(w => w.name === widgetName);
@@ -48,9 +48,9 @@ function syncWidgetAcrossNodes(sourceNode, widgetName, value) {
 }
 
 app.registerExtension({
-    name: "Comfy.CS-LTXKeyframer.DynamicInputs",
+    name: "Comfy.CSLTXKeyframer.DynamicInputs",
     async nodeCreated(node) {
-        if (node.comfyClass !== "CS-LTXKeyframer") return;
+        if (node.comfyClass !== "CSLTXKeyframer") return;
 
         // Register this node instance globally
         window._CSLTXKeyframerGlobalNodes.add(node);
@@ -78,7 +78,7 @@ app.registerExtension({
                 return [width, 10];
             }
         });
-        
+
         // Move separator before num_images
         const moveSeparator = () => {
             const idx = node.widgets.findIndex(w => w.name === "num_images");
@@ -93,7 +93,7 @@ app.registerExtension({
         // Core update: synchronize widget visibility to match imageCount
         node._applyWidgetCount = function(count) {
             const isInitialLoad = this._currentImageCount === -1;
-            
+
             if (this._currentImageCount === count && !isInitialLoad) return;
             this._currentImageCount = count;
 
@@ -116,8 +116,8 @@ app.registerExtension({
 
             // 2. Remove all existing dynamic insert_frame/strength/header widgets
             if (this.widgets) {
-                this.widgets = this.widgets.filter(w => 
-                    !w.name.startsWith("insert_frame_") && 
+                this.widgets = this.widgets.filter(w =>
+                    !w.name.startsWith("insert_frame_") &&
                     !w.name.startsWith("strength_") &&
                     !w.name.startsWith("header_")
                 );
@@ -137,7 +137,7 @@ app.registerExtension({
                         ctx.save();
                         const margin = 10;
                         const topPadding = 15;
-                        
+
                         // Subtle separator line
                         ctx.strokeStyle = "#333";
                         ctx.lineWidth = 1;
@@ -145,7 +145,7 @@ app.registerExtension({
                         ctx.moveTo(margin, y + 5);
                         ctx.lineTo(widget_width - margin, y + 5);
                         ctx.stroke();
-                        
+
                         // Text label
                         ctx.fillStyle = "#dddddd"; // Light gray
                         ctx.font = "bold 12px Arial";
@@ -163,8 +163,8 @@ app.registerExtension({
 
                 // Add insert_frame widget with Sync Callback
                 const savedInsertFrameValue = this.properties[insertFrameWidgetName];
-                this.addWidget("number", insertFrameWidgetName, 
-                    savedInsertFrameValue !== undefined ? savedInsertFrameValue : 0, 
+                this.addWidget("number", insertFrameWidgetName,
+                    savedInsertFrameValue !== undefined ? savedInsertFrameValue : 0,
                     (value) => {
                         const rounded = Math.round(value);
                         this.properties[insertFrameWidgetName] = rounded;
@@ -174,8 +174,8 @@ app.registerExtension({
 
                 // Add strength widget with Sync Callback
                 const savedStrengthValue = this.properties[strengthWidgetName];
-                this.addWidget("number", strengthWidgetName, 
-                    savedStrengthValue !== undefined ? savedStrengthValue : 1.0, 
+                this.addWidget("number", strengthWidgetName,
+                    savedStrengthValue !== undefined ? savedStrengthValue : 1.0,
                     (value) => {
                         this.properties[strengthWidgetName] = value;
                         syncWidgetAcrossNodes(this, strengthWidgetName, value); // Sync out
@@ -244,21 +244,21 @@ app.registerExtension({
             if (originalOnSerialize) {
                 originalOnSerialize.apply(this, arguments);
             }
-            
+
             info.properties = { ...this.properties };
-            
+
             // Build the exact strict array that maps 1-to-1 to the Python backend
             const strictArray = [];
             const numWidgetVal = this.properties["num_images"];
             strictArray.push(numWidgetVal !== undefined ? numWidgetVal : 1);
-            
+
             for (let i = 1; i <= 50; i++) {
                 const fVal = this.properties[`insert_frame_${i}`];
                 const sVal = this.properties[`strength_${i}`];
                 strictArray.push(fVal !== undefined ? fVal : 0);
                 strictArray.push(sVal !== undefined ? sVal : 1.0);
             }
-            
+
             info.widgets_values = strictArray;
         };
 
@@ -278,13 +278,13 @@ app.registerExtension({
             this._applyWidgetCount(count);
         };
 
-        // Helper: read image count from a connected CS-MultiImageLoader node
+        // Helper: read image count from a connected CSMultiImageLoader node
         function readSourceImageCount(self) {
             const multiInput = self.inputs?.find(inp => inp.name === "multi_input");
             if (!multiInput || !multiInput.link) return null;
 
             const nodeGraph = self.graph || app.graph;
-            
+
             // Helper to safely trace back through Reroutes and ComfyUI Group Nodes/Subgraphs
             function traceUpstream(graph, linkId, visited = new Set()) {
                 if (!linkId || visited.has(linkId)) return null;
@@ -296,7 +296,7 @@ app.registerExtension({
                 const originNode = graph.getNodeById(link.origin_id);
                 if (!originNode) return null;
 
-                if (originNode.comfyClass === "CS-MultiImageLoader") {
+                if (originNode.comfyClass === "CSMultiImageLoader") {
                     return originNode;
                 }
 
@@ -311,7 +311,7 @@ app.registerExtension({
                 if (typeof originNode.getInnerNode === "function") {
                     try {
                         const innerNode = originNode.getInnerNode(link.origin_slot);
-                        if (innerNode && innerNode.comfyClass === "CS-MultiImageLoader") {
+                        if (innerNode && innerNode.comfyClass === "CSMultiImageLoader") {
                             return innerNode;
                         }
                     } catch (e) {
@@ -340,12 +340,12 @@ app.registerExtension({
 
             // Fallback Strategy: If it is connected to something, but we couldn't resolve it
             // directly (e.g. complex nested 3rd party subgraphs), scan the entire UI.
-            // If there is EXACTLY ONE CS-MultiImageLoader in the workspace, safely assume that's the one.
+            // If there is EXACTLY ONE CSMultiImageLoader in the workspace, safely assume that's the one.
             let multiImageLoaders = [];
             function findAllLoaders(nodes) {
                 if (!nodes) return;
                 for (let n of nodes) {
-                    if (n.comfyClass === "CS-MultiImageLoader") {
+                    if (n.comfyClass === "CSMultiImageLoader") {
                         multiImageLoaders.push(n);
                     }
                     if (n.subgraph && n.subgraph._nodes) {
@@ -381,7 +381,7 @@ app.registerExtension({
         node.onRemoved = function() {
             // Unregister this node instance
             window._CSLTXKeyframerGlobalNodes.delete(node);
-            
+
             clearInterval(pollInterval);
             if (origOnRemoved) origOnRemoved.apply(this, arguments);
         };

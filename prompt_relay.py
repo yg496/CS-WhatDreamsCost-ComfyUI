@@ -20,7 +20,7 @@ def build_temporal_cost(q_token_idx, Lq, Lk, device, dtype, tokens_per_frame):
     return offset
 
 
-def build_temporal_cost_scaled(q_token_idx, Lq, Lk, device, dtype, latent_frames):
+def build_temporal_cost_scaled(q_token_idx, Lq, Lk, device, dtype, latent_frames, is_audio=False):
     """Penalty matrix for queries that don't map to integer frames (e.g. LTXAV audio tokens)."""
     offset = torch.zeros(Lq, Lk, device=device, dtype=dtype)
     query_frames = torch.arange(Lq, device=device, dtype=torch.float32) * latent_frames / Lq
@@ -28,54 +28,84 @@ def build_temporal_cost_scaled(q_token_idx, Lq, Lk, device, dtype, latent_frames
     for seg in q_token_idx:
         local = seg["local_token_idx"].to(device=device)
         d = (query_frames[:, None] - seg["midpoint"]).abs()
-        sigma_a = seg.get("sigma_audio", seg["sigma"])
-        window_a = seg.get("window_audio", seg["window"])
-        strength_a = seg.get("strength_audio", 1.0)
-        cost = strength_a * (torch.relu(d - window_a) ** 2) / (2 * sigma_a ** 2)
+        if is_audio:
+            sigma_val = seg.get("sigma_audio", seg["sigma"])
+            window_val = seg.get("window_audio", seg["window"])
+            strength_val = seg.get("strength_audio", 1.0)
+        else:
+            sigma_val = seg["sigma"]
+            window_val = seg["window"]
+            strength_val = seg.get("strength", 1.0)
+        cost = strength_val * (torch.relu(d - window_val) ** 2) / (2 * sigma_val ** 2)
         offset[:, local] = cost.to(offset.dtype)
 
     return offset
 
 
+def debug_log(msg):
+    pass
+
+
 def create_mask_fn(q_token_idx, fallback_tokens_per_frame, latent_frames):
-    """Closure: mask_fn(q, k, transformer_options) -> additive mask or None."""
+    """Closure: mask_fn(Lq, Lk, dtype, device, transformer_options) -> additive mask or None.
+
+    Takes shapes/dtype/device instead of tensors so callers can compute the mask
+    without first materializing q/k projections — required so PromptRelay can
+    wrap an existing cross-attn forward (e.g. KJNodes NAG) instead of replacing it.
+    """
     cache = {}
     max_token_idx = max(int(seg["local_token_idx"].max().item()) for seg in q_token_idx) + 1
 
-    def mask_fn(q, k, transformer_options):
-        Lq, Lk = q.shape[1], k.shape[1]
-
+    def mask_fn(Lq, Lk, dtype, device, transformer_options):
+        debug_log(f"mask_fn check: Lq={Lq} Lk={Lk} max_token_idx={max_token_idx} cond_or_uncond={transformer_options.get('cond_or_uncond', [])}")
         if Lq == Lk:
+            debug_log("mask_fn: Lq == Lk, returning None")
             return None
 
         # Only apply on conditional pass — not unconditional (negative prompt)
         cond_or_uncond = transformer_options.get("cond_or_uncond", [])
         if 1 in cond_or_uncond and 0 not in cond_or_uncond:
+            debug_log("mask_fn: unconditional pass, returning None")
             return None
 
         grid_sizes = transformer_options.get("grid_sizes", None)
-        video_tpf = int(grid_sizes[1]) * int(grid_sizes[2]) if grid_sizes is not None else fallback_tokens_per_frame
-        video_lq = latent_frames * video_tpf
+        attn_type = transformer_options.get("promptrelay_attn_type", "attn2")
+        is_audio = (attn_type == "audio_attn2")
 
-        # Skip cross-modal attention — text keys are padded to a fixed length ≥ max_token_idx and != video_lq
-        if Lk == video_lq or Lk < max_token_idx:
-            return None
+        if is_audio:
+            mode = "scaled"
+            video_lq = -1
+        else:
+            if grid_sizes is not None:
+                video_tpf = int(grid_sizes[1]) * int(grid_sizes[2])
+            else:
+                if Lq % latent_frames == 0:
+                    video_tpf = Lq // latent_frames
+                else:
+                    video_tpf = fallback_tokens_per_frame
+            video_lq = latent_frames * video_tpf
 
-        mode = "video" if Lq == video_lq else "scaled"
+            # Skip cross-modal attention — text keys are padded to a fixed length ≥ max_token_idx and != video_lq
+            if Lk == video_lq or Lk < max_token_idx:
+                debug_log(f"mask_fn: Lk == video_lq ({Lk == video_lq}) or Lk < max_token_idx ({Lk < max_token_idx}), returning None")
+                return None
 
-        key = (Lq, Lk, mode, q.device)
+            mode = "video" if Lq == video_lq else "scaled"
+
+        key = (Lq, Lk, mode, device)
         if key not in cache:
             if mode == "video":
-                cost = build_temporal_cost(q_token_idx, Lq, Lk, q.device, q.dtype, video_tpf)
+                cost = build_temporal_cost(q_token_idx, Lq, Lk, device, dtype, video_tpf)
             else:
-                cost = build_temporal_cost_scaled(q_token_idx, Lq, Lk, q.device, q.dtype, latent_frames)
+                cost = build_temporal_cost_scaled(q_token_idx, Lq, Lk, device, dtype, latent_frames, is_audio=is_audio)
             log.info(
                 "[PromptRelay] Built penalty matrix (%s): Lq=%d, Lk=%d, nonzero=%d/%d",
                 mode, Lq, Lk, (cost > 0).sum().item(), cost.numel(),
             )
+            debug_log(f"Built penalty matrix ({mode}): Lq={Lq}, Lk={Lk}, key={key}")
             cache[key] = -cost
 
-        return cache[key].to(q.dtype)
+        return cache[key].to(dtype)
 
     return mask_fn
 
@@ -160,7 +190,30 @@ def map_token_indices(raw_tokenizer, global_prompt, local_prompts):
     """
     prefixed_locals = [" " + lp for lp in local_prompts]
     full_prompt = global_prompt + "".join(prefixed_locals)
+
+    # Detect if the tokenizer appends EOS dynamically
     has_eos = getattr(raw_tokenizer, "add_eos", False)
+    if not has_eos:
+        try:
+            test_res = raw_tokenizer("test")
+            if isinstance(test_res, dict) and "input_ids" in test_res:
+                ids = test_res["input_ids"]
+            elif hasattr(test_res, "input_ids"):
+                ids = test_res.input_ids
+            elif isinstance(test_res, list):
+                ids = test_res
+            else:
+                ids = []
+
+            if ids:
+                eos_id = getattr(raw_tokenizer, "eos_token_id", None)
+                if eos_id is not None and ids[-1] == eos_id:
+                    has_eos = True
+                elif ids[-1] == 1:
+                    has_eos = True
+        except Exception:
+            pass
+
     eos_adj = 1 if has_eos else 0
 
     prev_len = len(raw_tokenizer(global_prompt)["input_ids"]) - eos_adj

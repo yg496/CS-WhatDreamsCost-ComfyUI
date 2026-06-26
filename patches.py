@@ -1,6 +1,9 @@
+import logging
 import types
-import torch
+
 import comfy.ldm.modules.attention
+
+log = logging.getLogger(__name__)
 
 
 def _masked_attention(q, k, v, heads, mask, transformer_options={}, **kwargs):
@@ -18,7 +21,7 @@ def _wan_t2v_forward(self, mask_fn, x, context, transformer_options={}, **kwargs
     k = self.norm_k(self.k(context))
     v = self.v(context)
 
-    mask = mask_fn(q, k, transformer_options)
+    mask = mask_fn(q.shape[1], k.shape[1], q.dtype, q.device, transformer_options)
     if mask is not None:
         x = _masked_attention(q, k, v, heads=self.num_heads, mask=mask,
                               transformer_options=transformer_options)
@@ -44,7 +47,7 @@ def _wan_i2v_forward(self, mask_fn, x, context, context_img_len, transformer_opt
     k = self.norm_k(self.k(context_text))
     v = self.v(context_text)
 
-    mask = mask_fn(q, k, transformer_options)
+    mask = mask_fn(q.shape[1], k.shape[1], q.dtype, q.device, transformer_options)
     if mask is not None:
         x = _masked_attention(q, k, v, heads=self.num_heads, mask=mask,
                               transformer_options=transformer_options)
@@ -56,47 +59,59 @@ def _wan_i2v_forward(self, mask_fn, x, context, context_img_len, transformer_opt
     return self.o(x + img_x)
 
 
-def _ltx_forward(self, mask_fn, x, context=None, mask=None, pe=None, k_pe=None, transformer_options={}):
-    from comfy.ldm.lightricks.model import apply_rotary_emb
+def _make_masked_override(prev_override):
+    """transformer_options override that routes mask-bearing attention calls through
+    attention_pytorch (sage/etc. drop arbitrary masks). Chains to a prior override
+    when no mask is present so we don't clobber other backends."""
+    def override(func, *args, **kwargs):
+        if kwargs.get("mask") is not None:
+            return comfy.ldm.modules.attention.attention_pytorch(*args, **kwargs)
+        if prev_override is not None:
+            return prev_override(func, *args, **kwargs)
+        return func(*args, **kwargs)
+    return override
 
-    is_self_attn = context is None
-    context = x if is_self_attn else context
 
-    q = self.q_norm(self.to_q(x))
-    k = self.k_norm(self.to_k(context))
-    v = self.to_v(context)
+def debug_log(msg):
+    pass
 
-    if pe is not None:
-        q = apply_rotary_emb(q, pe)
-        k = apply_rotary_emb(k, pe if k_pe is None else k_pe)
 
-    if not is_self_attn:
-        temporal_mask = mask_fn(q, k, transformer_options)
-        if temporal_mask is not None:
-            mask = temporal_mask if mask is None else mask + temporal_mask
+def _make_ltx_mask_wrapper(underlying, mask_fn, attr):
+    """Wrap an existing LTX cross-attn forward (the default `CrossAttention.forward`
+    or another node's patch — e.g. KJNodes NAG), injecting PromptRelay's additive
+    mask via the `mask` kwarg the upstream signature already accepts.
 
-    if mask is None:
-        out = comfy.ldm.modules.attention.optimized_attention(
-            q, k, v, self.heads, attn_precision=self.attn_precision,
+    `underlying` must already be bound to its module — callable as
+    `underlying(x, context=..., mask=..., ...)`.
+    """
+    def wrapped(_self, x, context=None, mask=None, pe=None, k_pe=None, transformer_options={}):
+        debug_log(f"wrapped called: x.shape={list(x.shape)} context.shape={list(context.shape) if context is not None else None} mask_is_none={mask is None}")
+        if context is not None:
+            opts = {**transformer_options, "promptrelay_attn_type": attr}
+            pr_mask = mask_fn(x.shape[1], context.shape[1], x.dtype, x.device, opts)
+            debug_log(f"mask_fn returned pr_mask_is_none={pr_mask is None}")
+            if pr_mask is not None:
+                debug_log(f"pr_mask info: shape={list(pr_mask.shape)} min={pr_mask.min().item()} max={pr_mask.max().item()} sum={pr_mask.sum().item()}")
+                mask = pr_mask if mask is None else mask + pr_mask
+
+        if mask is not None:
+            prev = transformer_options.get("optimized_attention_override")
+            transformer_options = {
+                **transformer_options,
+                "optimized_attention_override": _make_masked_override(prev),
+            }
+
+        return underlying(
+            x, context=context, mask=mask, pe=pe, k_pe=k_pe,
             transformer_options=transformer_options,
         )
-    else:
-        out = _masked_attention(q, k, v, self.heads, mask=mask,
-                                attn_precision=self.attn_precision,
-                                transformer_options=transformer_options)
 
-    if self.to_gate_logits is not None:
-        gate_logits = self.to_gate_logits(x)
-        b, t, _ = out.shape
-        out = out.view(b, t, self.heads, self.dim_head)
-        out = out * (2.0 * torch.sigmoid(gate_logits)).unsqueeze(-1)
-        out = out.view(b, t, self.heads * self.dim_head)
-
-    return self.to_out(out)
+    wrapped._promptrelay_wrapper = True
+    return wrapped
 
 
 class _CrossAttnPatch:
-    """Descriptor that binds (impl, mask_fn) as a method onto a cross-attn module."""
+    """Descriptor that binds (impl, mask_fn) as a method onto a Wan cross-attn module."""
 
     def __init__(self, impl, mask_fn):
         self.impl = impl
@@ -135,8 +150,8 @@ def _check_unpatched(model_clone, key):
     if key in getattr(model_clone, "object_patches", {}):
         raise RuntimeError(
             f"PromptRelay: cross-attention forward at '{key}' is already patched by "
-            "another node (e.g. KJNodes NAG). Stacking is not supported — remove the "
-            "conflicting node."
+            "another node. Stacking is not supported for this architecture — remove "
+            "the conflicting node."
         )
 
 
@@ -154,14 +169,19 @@ def apply_patches(model_clone, arch, mask_fn):
         return
 
     if arch == "ltx":
+        to = model_clone.model_options["transformer_options"]
+        to["promptrelay_mask_fn"] = mask_fn
+
         for idx, block in enumerate(diffusion_model.transformer_blocks):
             for attr in ("attn2", "audio_attn2"):
                 module = getattr(block, attr, None)
                 if module is None:
                     continue
                 key = f"diffusion_model.transformer_blocks.{idx}.{attr}.forward"
-                _check_unpatched(model_clone, key)
-                model_clone.add_object_patch(key, _CrossAttnPatch(_ltx_forward, mask_fn).__get__(module, module.__class__))
+                # get_model_object returns the prior patch if present, else the default bound forward.
+                underlying = model_clone.get_model_object(key)
+                wrapper = _make_ltx_mask_wrapper(underlying, mask_fn, attr)
+                model_clone.add_object_patch(key, types.MethodType(wrapper, module))
         return
 
     raise ValueError(f"Unknown model arch: {arch}")
