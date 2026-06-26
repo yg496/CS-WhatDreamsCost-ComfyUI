@@ -28,7 +28,9 @@ Also if you want to support this project or my channel, I did make a Ko-fi due t
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/J5N221K0D5)
 
-## ▶️ YouTube Tutorial Videos
+- 横屏视频：`分镜比例 = 16:9 横屏`
+- 竖屏视频：`分镜比例 = 9:16 竖屏`
+- 不确定比例：`分镜比例 = 自动 / 保持单格比例`
 
 <table>
   <tr>
@@ -177,15 +179,11 @@ Overhaul of the load audio node. Features a simple interface to easily trim audi
 ## LTX Director 2.0
 <img width="1562" height="870" alt="LTX_Director_Wide" src="https://github.com/user-attachments/assets/e2f9edec-c492-443e-84de-0ad1c0db04b3" />
 
-A Complete Timeline Editor For LTX 2.3. This is the sucessor of my previous nodes, and has loads of features in it. It was originally based off of [Kijai's Prompt Relay node](https://github.com/kijai/ComfyUI-PromptRelay) and my LTX Sequencer/Multi Image Loader nodes.
+文本段落数量建议与宫格模式一致：
 
-**Main Features:**
-- **Fully Functional Timeline Editor:** I spent hours studying various video editors and ended up with this design. If anyone has ideas for improvements let me know! I will adding documentation on all the functions soon.
-- **Prompt Relay integrated:** This unlocks the ability to have granular control over video generation. For more information on Prompt Relay go here, https://gordonchen19.github.io/Prompt-Relay/
-- **First, Middle, Last Frame Support:** This has by far the easiest method of creating first/last frames videos. It supports any number of keyframes, and will be the successor of my previous nodes.
-- **Custom Audio Support:** Import, trim, and combine your own audio clips in this node. Enabling custom audio is as simple as clicking 1 button. It is also compatible with every other feature in the node, include first/last frames, t2v, i2v, and prompt relay.
-- **Image to Video:** Part of the goal of this node was to make it easier to do everything, including Image to Video. It has built in resize functionality, and of course all the benifits of the prompt relay and custom audio integration.
-- **Text to Video:** Use text segments to create T2V videos. Compatible with all other features of the node.
+- `2x2 四宫格`：4 段
+- `3x2 六宫格`：6 段
+- `3x3 九宫格`：9 段
 
 **LTX Director 2.0 Update Main Features**
  - **Complete Video Support:** Edit Videos with AI all inside the node. Videos can be extended using a combination of prompts, keyframes, and audio. Trim, Split, and combine videos all within the timeline.
@@ -206,28 +204,30 @@ A Complete Timeline Editor For LTX 2.3. This is the sucessor of my previous node
 
 Download workflows here: https://github.com/WhatDreamsCost/WhatDreamsCost-ComfyUI/tree/main/example_workflows
 
-**Tutorial videos and documentation coming soon**
+## 自动刷新规则
 
+导演台会根据上游宫格图像来源判断是否需要刷新时间线。
 
 ## Multi Image Loader
 <img width="1280" height="720" alt="Multi_Image_Loader_Wide_Gif" src="https://github.com/user-attachments/assets/99b6afd8-5197-4e6c-81da-a7bd156c42c7" />
 
-An Image loader that features a built in gallery, allowing your to easily rearrange images and output them seperately or batched together. It also combines the image resize node and LTXVPreprocess node to reduce clutter in LTX workflows.
+执行时，自动宫格分镜会优先使用当前连接的 `GPT 分镜文本`，减少新图像误用上一轮提示词的情况。
 
 ## LTX Sequencer
 ![LTX_Sequencer_GIF](https://github.com/user-attachments/assets/88f27155-f50e-4cb2-b937-ab173e6bdf0b)
 
-An overhaul of the LTXVAddGuideMulti node. It allows you to quickly create FFLF (First Frame Last Frame) videos, shot sequences, supports any number of middle frames.
+画面边缘有白线：提高 `白边裁剪强度`，例如 `1.2` 或 `1.5`。
 
 Connect the Multi Image Loader node's multi_output to automatically update the node's widgets.
 
 It also has a sync feature that syncs all LTX Sequencer nodes together in realtime, removing the need to edit every single node manually every time you want to make a change to something.
 
+想做竖屏视频：选择 `分镜比例 = 9:16 竖屏`，宽高保持 `0 / 0`。
 
 ## LTX Keyframer
 <img width="1082" height="608" alt="LTX Keyframer Wide" src="https://github.com/user-attachments/assets/850ba4a2-dbca-4e5a-a580-1c271e9f0c41" />
 
-An overhaul of the LTXVImgToVideoInplaceKJ node. It allows you to quickly create FFLF (First Frame Last Frame) videos and shot sequences. Also upports any number of middle frames.
+## 安装
 
 Connect the Multi Image Loader node's multi_output to automatically update the node's widgets.
 

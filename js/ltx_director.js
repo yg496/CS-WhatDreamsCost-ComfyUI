@@ -245,6 +245,14 @@ function imageFromUrl(url) {
   });
 }
 
+const SIX_GRID_COMBO_CANONICAL_VALUES = {
+  grid_mode: ["2x2 \u56db\u5bab\u683c", "3x2 \u516d\u5bab\u683c", "3x3 \u4e5d\u5bab\u683c"],
+  shot_aspect: ["\u81ea\u52a8 / \u4fdd\u6301\u5355\u683c\u6bd4\u4f8b", "16:9 \u6a2a\u5c4f", "9:16 \u7ad6\u5c4f", "1:1 \u65b9\u56fe"],
+  display_mode: [ZH.seconds, ZH.frames],
+  parse_mode: ["\u81ea\u52a8", "JSON", "\u7f16\u53f7\u6587\u672c"],
+  resize_method: ["\u4fdd\u6301\u6bd4\u4f8b", "\u62c9\u4f38\u586b\u6ee1", "\u7559\u767d\u586b\u5145", "\u88c1\u526a\u586b\u6ee1"],
+};
+
 function hideWidget(w) {
   if (!w) return;
 
@@ -287,6 +295,27 @@ function showWidget(w) {
 
   if (w.element) w.element.style.display = "";
   if (w.callback) w.callback(w.value);
+}
+
+function prHideSixGridInternalWidgets(node) {
+  if (!prIsSixGridDirector(node)) return;
+  for (const w of node.widgets || []) {
+    if (HIDDEN_WIDGET_NAMES.includes(w.name)) hideWidget(w);
+  }
+}
+
+function prRepairNumberWidget(node, name, fallback, min = null, max = null, integer = false) {
+  const widget = prGetWidget(node, name);
+  if (!widget) return fallback;
+  let value = Number(widget.value);
+  const invalid =
+    !Number.isFinite(value) ||
+    (min !== null && value < min) ||
+    (max !== null && value > max);
+  if (invalid) value = fallback;
+  if (integer) value = Math.round(value);
+  widget.value = value;
+  return value;
 }
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
@@ -1520,6 +1549,7 @@ class TimelineEditor {
   destroy() {
     cancelAnimationFrame(this._renderLoop);
     this.pauseAudio();
+    if (this._sixGridAutoRefreshTimer) clearTimeout(this._sixGridAutoRefreshTimer);
     window.removeEventListener("keydown", this.handleKeyDown, true);
     window.removeEventListener("paste", this.handlePaste, true);
   }
@@ -1537,7 +1567,7 @@ class TimelineEditor {
   }
 
   // Grow the timeline duration to fit `requiredFrames` if it is currently shorter.
-  // The timeline only ever grows — never shrinks — through this method.
+  // The timeline only ever grows -never shrinks -through this method.
   growTimelineIfNeeded(requiredFrames) {
     const current = this.getDurationFrames();
     if (requiredFrames <= current) return; // already big enough
@@ -1609,8 +1639,8 @@ class TimelineEditor {
   }
 
   // Returns the visual timeline length in frames:
-  // the furthest segment end (across both tracks) × 1.30, with a floor of getDurationFrames().
-  // This is used for all rendering/positioning — the actual output duration is getDurationFrames().
+  // the furthest segment end (across both tracks) 脳 1.30, with a floor of getDurationFrames().
+  // This is used for all rendering/positioning -the actual output duration is getDurationFrames().
   getVisualDurationFrames() {
     if (this.retakeMode) {
       if (this.timeline.retakeVideo) {
@@ -4456,7 +4486,7 @@ class TimelineEditor {
               targetFrameStart = newStart + newLength; // For the next file in batch
             }
 
-            // Use the full intended length — the timeline has already been grown to fit.
+            // Use the full intended length -the timeline has already been grown to fit.
             let constrainedLength = newLength;
 
             const seg = {
@@ -5144,7 +5174,7 @@ class TimelineEditor {
             targetFrameStart = newStart + newLength;
           }
 
-          // Use the full clip length — timeline has already grown to fit.
+          // Use the full clip length -timeline has already grown to fit.
           let constrainedLength = newLength;
 
           const seg = {
@@ -11989,6 +12019,7 @@ app.registerExtension({
           const w = this.widgets.find(x => x.name === name);
           if (w && (w.value == null || w.value === "")) w.value = def;
         }
+        prHideSixGridInternalWidgets(this);
 
         setTimeout(() => {
           if (this._timelineEditor) {
