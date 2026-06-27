@@ -6,22 +6,6 @@ from .load_audio_ui import CSLoadAudioUI
 from .load_video_ui import CSLoadVideoUI
 from .ltx_director import CSLTXDirector
 from .ltx_director_guide import CSLTXDirectorGuide, CSLTXDirectorCropGuides
-from comfy_api.latest import ComfyExtension, io
-from typing_extensions import override
-
-
-class PromptRelay(ComfyExtension):
-    @override
-    async def get_node_list(self) -> list[type[io.ComfyNode]]:
-        return [
-            CSLTXDirector,
-            CSLTXDirectorGuide,
-        ]
-
-
-async def comfy_entrypoint() -> PromptRelay:
-    return PromptRelay()
-
 
 NODE_CLASS_MAPPINGS = {
     "CSLTXKeyframer": CSLTXKeyframer,
